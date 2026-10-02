@@ -80,6 +80,8 @@
 
 #define FIRMWARE_TEXT "ACR122U" // Tested on: ACR122U101(ACS), ACR122U102(Tikitag), ACR122U203(ACS)
 
+#define ODRFID_FIRMWARE_TEXT "Open Development RFID Reader "
+
 #define ACR122_PCSC_WRAP_LEN 6
 #define ACR122_PCSC_COMMAND_LEN 266
 #define ACR122_PCSC_RESPONSE_LEN 268
@@ -94,6 +96,8 @@ const struct pn53x_io acr122_pcsc_io;
 char   *acr122_pcsc_firmware(nfc_device *pnd);
 
 static const char *supported_devices[] = {
+  "ODRFID",
+  "Open Development",
   "ACS ACR122",         // ACR122U & Touchatag, last version
   "ACS ACR 38U-CCID",   // Touchatag, early version
   "ACS ACR38U-CCID",    // Touchatag, early version, under MacOSX
@@ -289,7 +293,8 @@ acr122_pcsc_open(const nfc_context *context, const nfc_connstring connstring)
 
   // Retrieve the current firmware version
   pcFirmware = acr122_pcsc_firmware(pnd);
-  if (strstr(pcFirmware, FIRMWARE_TEXT) != NULL) {
+  if (strstr(pcFirmware, FIRMWARE_TEXT) != NULL ||
+      strncmp(pcFirmware, ODRFID_FIRMWARE_TEXT, strlen(ODRFID_FIRMWARE_TEXT)) == 0) {
 
     // Done, we found the reader we are looking for
     snprintf(pnd->name, sizeof(pnd->name), "%s / %s", ndd.pcsc_device_name, pcFirmware);
@@ -331,7 +336,7 @@ acr122_pcsc_send(nfc_device *pnd, const uint8_t *pbtData, const size_t szData, i
   (void) timeout;
 
   // Make sure the command does not overflow the send buffer
-  if (szData > ACR122_PCSC_COMMAND_LEN) {
+  if (szData > ACR122_PCSC_COMMAND_LEN || szData > 254) {
     pnd->last_error = NFC_EINVARG;
     return pnd->last_error;
   }
@@ -439,11 +444,11 @@ acr122_pcsc_firmware(nfc_device *pnd)
   uint8_t  abtGetFw[5] = { 0xFF, 0x00, 0x48, 0x00, 0x00 };
   uint32_t uiResult;
 
-  static char abtFw[11];
-  DWORD dwFwLen = sizeof(abtFw);
+  static char abtFw[128];
+  DWORD dwFwLen = sizeof(abtFw) - 1;
   memset(abtFw, 0x00, sizeof(abtFw));
   if (DRIVER_DATA(pnd)->ioCard.dwProtocol == SCARD_PROTOCOL_UNDEFINED) {
-    uiResult = SCardControl(DRIVER_DATA(pnd)->hCard, IOCTL_CCID_ESCAPE_SCARD_CTL_CODE, abtGetFw, sizeof(abtGetFw), (uint8_t *) abtFw, dwFwLen - 1, &dwFwLen);
+    uiResult = SCardControl(DRIVER_DATA(pnd)->hCard, IOCTL_CCID_ESCAPE_SCARD_CTL_CODE, abtGetFw, sizeof(abtGetFw), (uint8_t *) abtFw, dwFwLen, &dwFwLen);
   } else {
     uiResult = SCardTransmit(DRIVER_DATA(pnd)->hCard, &(DRIVER_DATA(pnd)->ioCard), abtGetFw, sizeof(abtGetFw), NULL, (uint8_t *) abtFw, &dwFwLen);
   }
@@ -452,6 +457,7 @@ acr122_pcsc_firmware(nfc_device *pnd)
     log_put(LOG_GROUP, LOG_CATEGORY, NFC_LOG_PRIORITY_ERROR, "No ACR122 firmware received, Error: %08x", uiResult);
   }
 
+  abtFw[sizeof(abtFw) - 1] = '\0';
   return abtFw;
 }
 

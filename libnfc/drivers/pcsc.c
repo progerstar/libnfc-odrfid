@@ -91,6 +91,8 @@ static const char *supported_devices[] = {
   "ACS ACR38U-CCID",    // Touchatag, early version, under MacOSX
   "ACS AET65",          // Touchatag using CCID driver version >= 1.4.6
   "    CCID USB",       // ??
+  "ODRFID",             // ODRFID readers are handled by acr122_pcsc
+  "Open Development",   // ODRFID readers under the manufacturer name
   NULL
 };
 

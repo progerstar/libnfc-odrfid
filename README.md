@@ -1,3 +1,79 @@
+# libnfc-odrfid — форк libnfc для считывателей UnitX ODRFID
+
+[English](README.en.md) | **Русский**
+
+Форк [libnfc](https://github.com/nfc-tools/libnfc) с поддержкой считывателей
+**UnitX ODRFID** (ODRFID3-M и ODRFID3-N, STM32L151, MFRC522-совместимый
+радиотракт), работающих в USB-профиле с CCID.
+
+
+## О считывателе
+
+Считыватель определяется как `0483:A26A`, производитель «Open Development»,
+изделие `ODRFID3-M` / `ODRFID3-N`.
+
+## Отличия от upstream
+
+| Файл | Изменение |
+|------|-----------|
+| `libnfc/drivers/acr122_pcsc.c` | принимает имена PC/SC-считывателя `ODRFID` и `Open Development`; принимает префикс строки прошивки `Open Development RFID Reader `; буфер строки прошивки увеличен до 128 байт с завершающим NUL (было 11); Direct Transmit ограничен 254 байтами (однобайтовый Lc) |
+| `libnfc/drivers/acr122_usb.c` | `0483:A26A` добавлен в список поддерживаемых устройств (CCID должен быть интерфейсом 0 — оба профиля считывателя это обеспечивают) |
+| `libnfc/drivers/pcsc.c` | `ODRFID` и `Open Development` добавлены в исключения, чтобы универсальный драйвер `pcsc` не занимал считыватель второй раз |
+| `contrib/udev/93-pn53x.rules` | правило прямого USB-доступа к `0483:A26A` |
+
+## Выбор драйвера
+
+`acr122_pcsc` и `acr122_usb` обращаются к одному устройству и **не могут
+работать одновременно**: `acr122_usb` при открытии сбрасывает USB-устройство
+целиком, и сеанс демона PC/SC разрывается. Собирайте один из них:
+
+| Ситуация | Сборка |
+|----------|--------|
+| Работает `pcscd` (или PC/SC в Windows) | только `acr122_pcsc` |
+| Linux, прямой USB, без `pcscd` | только `acr122_usb` |
+
+Autotools: `./configure --with-drivers=acr122_pcsc` (или `acr122_usb`).
+CMake: `-DLIBNFC_DRIVER_ACR122_PCSC=ON`, остальные драйверы выключить:
+
+    cmake -S . -B build -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+      -DLIBNFC_DRIVER_ACR122_PCSC=ON -DLIBNFC_DRIVER_ACR122_USB=OFF \
+      -DLIBNFC_DRIVER_PCSC=OFF -DLIBNFC_DRIVER_PN53X_USB=OFF \
+      -DLIBNFC_DRIVER_ARYGON=OFF -DLIBNFC_DRIVER_PN532_UART=OFF \
+      -DLIBNFC_DRIVER_PN532_SPI=OFF -DLIBNFC_DRIVER_PN532_I2C=OFF
+    cmake --build build
+
+Учтите: `nfc-list` по очереди открывает все устройства, найденные всеми
+собранными драйверами, поэтому сборка с обоими драйверами нарушит собственный
+PC/SC-сеанс.
+
+## Настройка считывателя на ПК
+
+1. Переведите считыватель в режим 1 или 2 (см. документацию прошивки), например
+   `python3 tools/odrfid_usbmode.py serial /dev/ttyACM0 --set 1` из
+   репозитория прошивки.
+2. **`acr122_pcsc`:** драйвер CCID должен знать устройство.
+   - Linux (`pcsc-lite` + `libccid`): добавьте `0x0483`, `0xA26A`,
+     `ODRFID CCID` в `ifdVendorID`, `ifdProductID`, `ifdFriendlyName` файла
+     `Info.plist` libccid и перезапустите `pcscd`. Имя считывателя должно
+     начинаться с `ODRFID` или `Open Development`, иначе форк его не примет.
+   - Windows: используется встроенный драйвер `usbccid`; включите Escape-команды
+     для устройства в реестре (`EscapeCommandEnable`, см. документацию
+     прошивки).
+   Проверьте `pcsc_scan`, затем запустите `nfc-list -v`.
+3. **`acr122_usb`:** остановите `pcscd`, установите правило udev
+   (`sudo cp contrib/udev/93-pn53x.rules /lib/udev/rules.d/`), затем запустите
+   `nfc-list -v`.
+
+## Лицензия
+
+libnfc распространяется по GNU Lesser General Public License v3.0 или новее;
+изменения форка — на тех же условиях. Исходные уведомления об авторских правах
+сохранены.
+
+---
+
+# Upstream README (libnfc)
+
 ```
 *-
 * Free/Libre Near Field Communication (NFC) library

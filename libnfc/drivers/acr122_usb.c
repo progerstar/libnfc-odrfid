@@ -265,6 +265,7 @@ const struct acr122_usb_supported_device acr122_usb_supported_devices[] = {
   { 0x072F, 0x2200, "ACS ACR122" },
   { 0x072F, 0x90CC, "Touchatag" },
   { 0x072F, 0x2214, "ACS ACR1222" },
+  { 0x0483, 0xA26A, "ODRFID" },      // CCID must be interface 0 (USB profile 1 or 2)
 };
 
 // Find transfer endpoints for bulk transfers
